@@ -37,7 +37,7 @@ jobs:
       - name: Install dependencies
         run: |
           npm ci
-          uv pip install --python python${{ matrix.python-version }} -e .
+          uv pip install --system --python python${{ matrix.python-version }} -e .
 
       - name: Run validation
         run: npm run validate
@@ -73,7 +73,7 @@ jobs:
       - name: Install dependencies
         run: |
           npm ci
-          uv pip install --python python3.11 -e .
+          uv pip install --system --python python3.11 -e .
 
       - name: Check if version changed
         id: version-check
