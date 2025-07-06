@@ -39,4 +39,4 @@ console.log('   https://github.com/isiahw1/mcp-server-bing-webmaster');
 console.log('\n🔑 Next Steps:');
 console.log('   1. Get your Bing Webmaster API key from https://www.bing.com/webmasters');
 console.log('   2. Configure Claude Desktop with your API key');
-console.log('   3. Start using 47 powerful Bing Webmaster tools!\n');
+console.log('   3. Start using powerful Bing Webmaster tools!\n');

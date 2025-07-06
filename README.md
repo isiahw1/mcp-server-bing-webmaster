@@ -11,11 +11,8 @@ An MCP (Model Context Protocol) server that provides access to Bing Webmaster To
 
 ### For Claude Code Users:
 ```bash
-# Add the MCP server
-claude mcp add bing-webmaster -- npx -y @isiahw1/mcp-server-bing-webmaster@latest
-
-# Set your API key
-export BING_WEBMASTER_API_KEY="your_api_key_here"
+# Add the MCP server with your API key
+claude mcp add bing-webmaster -e BING_WEBMASTER_API_KEY=your_api_key_here -- npx -y @isiahw1/mcp-server-bing-webmaster@latest
 
 # Launch Claude Code
 claude
@@ -48,7 +45,7 @@ Add to your configuration (Settings → Developer → Edit Config):
   - [Cursor](#cursor)
   - [Windsurf](#windsurf)
   - [Development Setup](#development-setup-local-installation)
-- [Available Tools](#available-tools-42-total)
+- [Available Tools](#available-tools)
 - [Usage Examples](#usage-examples)
 - [Development](#development)
 - [Contributing](#contributing)
@@ -101,19 +98,28 @@ uv pip install -e .
 <details>
 <summary><b>Claude Code (Command Line)</b></summary>
 
-#### Option 1: Quick Setup
+#### Option 1: Quick Setup (Recommended)
 ```bash
-# Add the MCP server to Claude Code
-claude mcp add bing-webmaster -- npx -y @isiahw1/mcp-server-bing-webmaster@latest
-
-# Set your API key
-export BING_WEBMASTER_API_KEY="your_api_key_here"
+# Add the MCP server with inline API key
+claude mcp add bing-webmaster -e BING_WEBMASTER_API_KEY=your_api_key_here -- npx -y @isiahw1/mcp-server-bing-webmaster@latest
 
 # Launch Claude Code
 claude
 ```
 
-#### Option 2: Using Environment File
+#### Option 2: Using System Environment Variable
+```bash
+# Set your API key
+export BING_WEBMASTER_API_KEY="your_api_key_here"
+
+# Add the MCP server
+claude mcp add bing-webmaster -- npx -y @isiahw1/mcp-server-bing-webmaster@latest
+
+# Launch Claude Code
+claude
+```
+
+#### Option 3: Using Environment File
 ```bash
 # Create .env file
 echo "BING_WEBMASTER_API_KEY=your_api_key_here" > .env
@@ -267,7 +273,7 @@ claude mcp add bing-webmaster-dev -- uv run python -m mcp_server_bwt
 After configuration, you should be able to:
 - See "bing-webmaster" in your MCP servers list
 - Use commands like "Show me all my sites in Bing Webmaster Tools"
-- Access all 42+ Bing Webmaster Tools functions
+- Access all Bing Webmaster Tools functions
 
 ### Troubleshooting
 
@@ -281,7 +287,7 @@ After configuration, you should be able to:
 - Make sure you're using `npx` as the command, not `mcp-server-bing-webmaster`
 - If you have an old global installation, uninstall it: `npm uninstall -g @isiahw1/mcp-server-bing-webmaster`
 
-## Available Tools (42 Total)
+## Available Tools
 
 ### Site Management
 - `get_sites` - List all verified sites in your account

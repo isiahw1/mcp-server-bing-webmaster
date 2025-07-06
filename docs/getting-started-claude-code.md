@@ -10,28 +10,39 @@ This guide will help you set up the Bing Webmaster Tools MCP server with Claude 
 
 ## Setup Steps
 
-### 1. Add the MCP Server
+### 1. Add the MCP Server with API Key
 
-Run this command to add the Bing Webmaster MCP server to Claude Code:
+Choose one of the following methods:
 
+#### Option A: Inline Environment Variable (Recommended)
+Add the server with your API key in one command:
 ```bash
-claude mcp add bing-webmaster -- npx -y @isiahw1/mcp-server-bing-webmaster@latest
+claude mcp add bing-webmaster -e BING_WEBMASTER_API_KEY=your_api_key_here -- npx -y @isiahw1/mcp-server-bing-webmaster@latest
 ```
 
-### 2. Set Your API Key
-
-#### Option A: Environment Variable
+#### Option B: Using System Environment Variable
+First set the environment variable:
 ```bash
 export BING_WEBMASTER_API_KEY="your_api_key_here"
 ```
 
-#### Option B: Using .env File
+Then add the server:
+```bash
+claude mcp add bing-webmaster -- npx -y @isiahw1/mcp-server-bing-webmaster@latest
+```
+
+#### Option C: Using .env File
 Create a `.env` file in your project directory:
 ```
 BING_WEBMASTER_API_KEY=your_api_key_here
 ```
 
-### 3. Launch Claude Code
+Then add the server:
+```bash
+claude mcp add bing-webmaster -- npx -y @isiahw1/mcp-server-bing-webmaster@latest
+```
+
+### 2. Launch Claude Code
 
 ```bash
 claude
@@ -78,19 +89,28 @@ MCP server "bing-webmaster" Server stderr: Starting Bing Webmaster MCP server...
 
 ### Using a Specific Version
 ```bash
-claude mcp add bing-webmaster -- npx -y @isiahw1/mcp-server-bing-webmaster@1.0.1
+claude mcp add bing-webmaster -e BING_WEBMASTER_API_KEY=your_api_key_here -- npx -y @isiahw1/mcp-server-bing-webmaster@1.0.1
 ```
 
 ### Using Local Development Version
 ```bash
 # From your development directory
 cd /path/to/mcp-server-bing-webmaster
-claude mcp add bing-webmaster-dev -- uv run python -m mcp_server_bwt
+claude mcp add bing-webmaster-dev -e BING_WEBMASTER_API_KEY=your_api_key_here -- uv run python -m mcp_server_bwt
+```
+
+### Multiple Environment Variables
+You can pass multiple environment variables using multiple `-e` flags:
+```bash
+claude mcp add bing-webmaster \
+  -e BING_WEBMASTER_API_KEY=your_api_key_here \
+  -e LOG_LEVEL=debug \
+  -- npx -y @isiahw1/mcp-server-bing-webmaster@latest
 ```
 
 ## Next Steps
 
-- Explore the [full list of available tools](../README.md#available-tools-42-total)
+- Explore the [full list of available tools](../README.md#available-tools)
 - Check out [usage examples](../README.md#usage-examples)
 - Learn about [API quotas and limits](https://www.bing.com/webmaster/help/webmaster-api-limits)
 

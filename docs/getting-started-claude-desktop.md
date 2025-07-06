@@ -169,7 +169,7 @@ You can run multiple MCP servers simultaneously:
 
 ## Next Steps
 
-- Explore the [full list of available tools](../README.md#available-tools-42-total)
+- Explore the [full list of available tools](../README.md#available-tools)
 - Check out [usage examples](../README.md#usage-examples)
 - Learn about [API quotas and limits](https://www.bing.com/webmaster/help/webmaster-api-limits)
 
