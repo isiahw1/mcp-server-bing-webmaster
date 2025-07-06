@@ -7,6 +7,53 @@
 
 An MCP (Model Context Protocol) server that provides access to Bing Webmaster Tools functionality through Claude and other MCP-compatible AI assistants.
 
+## 🚀 Quick Start
+
+### For Claude Code Users:
+```bash
+# Add the MCP server
+claude mcp add bing-webmaster -- npx -y @isiahw1/mcp-server-bing-webmaster@latest
+
+# Set your API key
+export BING_WEBMASTER_API_KEY="your_api_key_here"
+
+# Launch Claude Code
+claude
+```
+
+### For Claude Desktop Users:
+Add to your configuration (Settings → Developer → Edit Config):
+```json
+{
+  "mcpServers": {
+    "bing-webmaster": {
+      "command": "npx",
+      "args": ["-y", "@isiahw1/mcp-server-bing-webmaster@latest"],
+      "env": {
+        "BING_WEBMASTER_API_KEY": "your_api_key_here"
+      }
+    }
+  }
+}
+```
+
+[Get your API key from Bing Webmaster Tools](https://www.bing.com/webmasters) → Settings → API Access
+
+## Table of Contents
+- [Features](#features)
+- [Installation](#installation)
+- [Configuration](#configuration)
+  - [Claude Code](#claude-code-command-line) ([Detailed Guide](docs/getting-started-claude-code.md))
+  - [Claude Desktop](#claude-desktop) ([Detailed Guide](docs/getting-started-claude-desktop.md))
+  - [Cursor](#cursor)
+  - [Windsurf](#windsurf)
+  - [Development Setup](#development-setup-local-installation)
+- [Available Tools](#available-tools-42-total)
+- [Usage Examples](#usage-examples)
+- [Development](#development)
+- [Contributing](#contributing)
+- [Support](#support)
+
 ## Features
 
 - 🚀 **Direct API Integration**: Simple and reliable access to Bing Webmaster Tools
@@ -18,19 +65,27 @@ An MCP (Model Context Protocol) server that provides access to Bing Webmaster To
 ## Installation
 
 ### Prerequisites
-- Python 3.10 or higher
-- Bing Webmaster API key (get it from [Bing Webmaster Tools](https://www.bing.com/webmasters))
+- Node.js 16+ (for npm/npx)
+- Python 3.10+ (installed automatically via npm)
+- Bing Webmaster API key ([Get your API key](https://www.bing.com/webmasters))
 
-### Option 1: Install from npm
+### Quick Start
+The easiest way to use this MCP server is through npx (no installation required):
+```bash
+npx @isiahw1/mcp-server-bing-webmaster@latest
+```
+
+### Global Installation (Optional)
 ```bash
 npm install -g @isiahw1/mcp-server-bing-webmaster
 ```
 
-### Option 2: Install from source
+### Development Installation
+For contributors and developers:
 ```bash
 git clone https://github.com/isiahw1/mcp-server-bing-webmaster.git
 cd mcp-server-bing-webmaster
-pip install -e .
+uv pip install -e .
 ```
 
 ## Configuration
@@ -41,23 +96,152 @@ pip install -e .
 2. Go to Settings → API Access
 3. Generate your API key
 
-### 2. Set up environment
+### 2. Client Setup Instructions
 
-Create a `.env` file in your project directory:
+<details>
+<summary><b>Claude Code (Command Line)</b></summary>
+
+#### Option 1: Quick Setup
+```bash
+# Add the MCP server to Claude Code
+claude mcp add bing-webmaster -- npx -y @isiahw1/mcp-server-bing-webmaster@latest
+
+# Set your API key
+export BING_WEBMASTER_API_KEY="your_api_key_here"
+
+# Launch Claude Code
+claude
+```
+
+#### Option 2: Using Environment File
+```bash
+# Create .env file
+echo "BING_WEBMASTER_API_KEY=your_api_key_here" > .env
+
+# Add the MCP server
+claude mcp add bing-webmaster -- npx -y @isiahw1/mcp-server-bing-webmaster@latest
+
+# Launch Claude Code
+claude
+```
+
+#### Troubleshooting
+If you encounter issues, run with debug mode:
+```bash
+claude --mcp-debug
+```
+
+</details>
+
+<details>
+<summary><b>Claude Desktop</b></summary>
+
+1. Open Claude Desktop
+2. Go to `Claude → Settings`
+3. Select `Developer` from the sidebar
+4. Click `Edit Config`
+5. Add the following to your configuration:
+
+```json
+{
+  "mcpServers": {
+    "bing-webmaster": {
+      "command": "npx",
+      "args": ["-y", "@isiahw1/mcp-server-bing-webmaster@latest"],
+      "env": {
+        "BING_WEBMASTER_API_KEY": "your_api_key_here"
+      }
+    }
+  }
+}
+```
+
+6. Save the file and restart Claude Desktop
+
+**Configuration file locations:**
+- macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+- Linux: `~/.config/Claude/claude_desktop_config.json`
+
+</details>
+
+<details>
+<summary><b>Cursor</b></summary>
+
+1. Launch Cursor
+2. Open `Cursor → Settings → Cursor Settings`
+3. Select `MCP` in the left sidebar
+4. Click `Add new global MCP server`
+5. Paste this configuration:
+
+```json
+{
+  "mcpServers": {
+    "bing-webmaster": {
+      "command": "npx",
+      "args": ["-y", "@isiahw1/mcp-server-bing-webmaster@latest"],
+      "env": {
+        "BING_WEBMASTER_API_KEY": "your_api_key_here"
+      }
+    }
+  }
+}
+```
+
+6. Restart Cursor
+
+</details>
+
+<details>
+<summary><b>Windsurf</b></summary>
+
+1. Open Windsurf
+2. Navigate to Settings → MCP Configuration
+3. Add the following configuration:
+
+```json
+{
+  "mcpServers": {
+    "bing-webmaster": {
+      "command": "npx",
+      "args": ["-y", "@isiahw1/mcp-server-bing-webmaster@latest"],
+      "env": {
+        "BING_WEBMASTER_API_KEY": "your_api_key_here"
+      }
+    }
+  }
+}
+```
+
+4. Restart Windsurf
+
+</details>
+
+<details>
+<summary><b>Development Setup (Local Installation)</b></summary>
+
+For developers working with the source code:
 
 ```bash
-BING_WEBMASTER_API_KEY=your_api_key_here
+# Clone the repository
+git clone https://github.com/isiahw1/mcp-server-bing-webmaster.git
+cd mcp-server-bing-webmaster
+
+# Install uv (if not already installed)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Install dependencies
+uv pip install -e .
 ```
 
-### 3. Configure Claude Desktop
-
-Add to your Claude Desktop configuration (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
-
+#### Claude Desktop Configuration for Development
 ```json
 {
   "mcpServers": {
-    "bing-webmaster": {
-      "command": "mcp-server-bing-webmaster",
+    "bing-webmaster-dev": {
+      "command": "uv",
+      "args": ["run", "python", "-m", "mcp_server_bwt"],
+      "cwd": "/path/to/mcp-server-bing-webmaster",
       "env": {
         "BING_WEBMASTER_API_KEY": "your_api_key_here"
       }
@@ -66,21 +250,36 @@ Add to your Claude Desktop configuration (`~/Library/Application Support/Claude/
 }
 ```
 
-For development/source installation:
+#### Claude Code Configuration for Development
+```bash
+# Set environment variable
+export BING_WEBMASTER_API_KEY="your_api_key_here"
 
-```json
-{
-  "mcpServers": {
-    "bing-webmaster": {
-      "command": "/path/to/venv/bin/python",
-      "args": ["-m", "mcp_server_bwt"],
-      "env": {
-        "BING_WEBMASTER_API_KEY": "your_api_key_here"
-      }
-    }
-  }
-}
+# Run from the project directory
+cd /path/to/mcp-server-bing-webmaster
+claude mcp add bing-webmaster-dev -- uv run python -m mcp_server_bwt
 ```
+
+</details>
+
+### 3. Verify Installation
+
+After configuration, you should be able to:
+- See "bing-webmaster" in your MCP servers list
+- Use commands like "Show me all my sites in Bing Webmaster Tools"
+- Access all 42+ Bing Webmaster Tools functions
+
+### Troubleshooting
+
+**"Could not attach to MCP server" error:**
+1. Check your API key is correct
+2. Ensure you have internet connectivity
+3. For Claude Desktop: Check logs in Settings → Developer → Open Logs Folder
+4. For Claude Code: Run with `claude --mcp-debug`
+
+**"spawn mcp-server-bing-webmaster ENOENT" error:**
+- Make sure you're using `npx` as the command, not `mcp-server-bing-webmaster`
+- If you have an old global installation, uninstall it: `npm uninstall -g @isiahw1/mcp-server-bing-webmaster`
 
 ## Available Tools (42 Total)
 

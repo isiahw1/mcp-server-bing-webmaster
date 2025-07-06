@@ -75,7 +75,6 @@
   },
   "packageManager": "npm@10.0.0",
   "dependencies": {
-    "@browserbasehq/stagehand": "^2.4.1",
-    "mcp-proxy": "^5.3.0"
+    "@isiahw1/mcp-server-bing-webmaster": "^1.0.1"
   }
 }
