@@ -16,19 +16,21 @@ WORKDIR /app
 # Clone and install mcp-proxy from GitHub
 RUN git clone https://github.com/punkpeye/mcp-proxy.git && \
     cd mcp-proxy && \
-    npm install && \
-    npm install -g .
+    npm install
 
 # Clone and install the MCP server
 RUN git clone https://github.com/isiahw1/mcp-server-bing-webmaster.git server && \
     cd server && \
     pip install -e .
 
+# Build mcp-proxy
+RUN cd /app/mcp-proxy && npm run build
+
 # Create startup script
 RUN echo '#!/bin/bash\n\
 export BING_WEBMASTER_API_KEY="${BING_WEBMASTER_API_KEY:-placeholder}"\n\
 cd /app/server\n\
-exec mcp-proxy --port 3000 python -m mcp_server_bwt.main' > /app/start.sh && \
+exec node /app/mcp-proxy/dist/bin/mcp-proxy.js --port 3000 --debug -- python -m mcp_server_bwt' > /app/start.sh && \
     chmod +x /app/start.sh
 
 # Expose the port
