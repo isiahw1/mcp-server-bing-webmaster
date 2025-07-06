@@ -43,7 +43,7 @@
     "scripts/"
   ],
   "scripts": {
-    "build": "uv pip install --python /usr/bin/python3 -e . && echo 'Build complete'",
+    "build": "node scripts/build.js",
     "test": "echo \"Tests require Python environment\" && exit 0",
     "prepublishOnly": "npm run validate",
     "validate": "node scripts/validate.js",
