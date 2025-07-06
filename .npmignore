@@ -1,0 +1,89 @@
+# Source files not needed for npm package
+tests_archive/
+test_*.py
+validate_*.py
+VALIDATION_REPORT.md
+*.test.js
+*.spec.js
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Development files
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+env/
+
+# Git and CI files
+.git/
+.github/
+.gitignore
+.travis.yml
+.gitlab-ci.yml
+appveyor.yml
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Documentation source files
+docs/
+doc/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Development dependencies
+requirements-dev.txt
+requirements-test.txt
+
+# Example/demo files
+examples/
+demo/
+
+# Coverage reports
+.coverage
+htmlcov/
+coverage.xml
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+.tmp/
+
+# Data files
+*.json
+!package.json
+!package-lock.json
+
+# Python cache
+.pytest_cache/
+.mypy_cache/
+.tox/
+
+# Keep only necessary files for npm package
+!mcp_server_bwt/
+!pyproject.toml
+!README.md
+!LICENSE
+!CHANGELOG.md
+!SECURITY.md
+!run.js
+!.env.example
+!scripts/
