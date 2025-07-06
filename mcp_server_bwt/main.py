@@ -1,8 +1,8 @@
 """
-MCP Server for Bing Webmaster Tools API
+MCP Server for Bing Webmaster Tools
 
-A lightweight MCP server that provides direct access to Bing Webmaster Tools API,
-handling OData response format and ensuring compatibility with MCP requirements.
+An MCP server that provides integration with Bing Webmaster Tools,
+enabling site management and analytics through AI assistants.
 """
 
 import os

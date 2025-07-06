@@ -1,7 +1,7 @@
 {
   "name": "@isiahw1/mcp-server-bing-webmaster",
   "version": "1.0.0",
-  "description": "MCP server for direct Bing Webmaster Tools API access with OData compatibility",
+  "description": "MCP server for Bing Webmaster Tools integration",
   "keywords": [
     "mcp",
     "model-context-protocol",
@@ -33,7 +33,7 @@
   },
   "main": "run.js",
   "bin": {
-    "mcp-server-bing-webmaster": "./run.js"
+    "mcp-server-bing-webmaster": "run.js"
   },
   "files": [
     "mcp_server_bwt/",

@@ -5,16 +5,15 @@
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Node](https://img.shields.io/badge/node-%3E%3D16.0.0-green.svg)](https://nodejs.org/)
 
-A comprehensive MCP (Model Context Protocol) server that provides direct access to the Bing Webmaster Tools API. This server handles Microsoft's OData response format and ensures compatibility with MCP requirements, offering 59 tools to manage your websites in Bing Webmaster Tools through Claude.
+An MCP (Model Context Protocol) server that provides access to Bing Webmaster Tools functionality through Claude and other MCP-compatible AI assistants.
 
 ## Features
 
-- 🚀 **Direct API Access**: Bypasses complex SDK layers for reliable performance
-- 🔄 **OData Compatibility**: Handles Microsoft's legacy OData v2/v3 response format
-- 📊 **Comprehensive Coverage**: Implements 59 Bing Webmaster Tools API endpoints
+- 🚀 **Direct API Integration**: Simple and reliable access to Bing Webmaster Tools
+- 📊 **Comprehensive Features**: Site management, traffic analytics, crawl data, and more
 - 🛡️ **Error Handling**: Robust error handling with detailed logging
-- 🎯 **MCP Compliant**: Ensures all responses meet MCP validation requirements
-- 📈 **100% API Coverage**: All available Bing Webmaster Tools API endpoints implemented
+- 🎯 **MCP Compliant**: Full compatibility with Model Context Protocol
+- 📈 **Rich Functionality**: URL submission, keyword analysis, sitemap management, and more
 
 ## Installation
 

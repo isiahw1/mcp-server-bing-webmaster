@@ -7,11 +7,11 @@ name = "mcp-server-bing-webmaster"
 authors = [
   { name = "Isiah Wheeler", email = "github@isiahwheeler.com" },
 ]
-description = "MCP server for direct Bing Webmaster Tools API access with OData compatibility"
+description = "MCP server for Bing Webmaster Tools integration"
 readme = "README.md"
 requires-python = ">=3.10"
 dynamic = ["version"]
-keywords = ["mcp", "bing", "webmaster", "seo", "api", "odata"]
+keywords = ["mcp", "bing", "webmaster", "seo", "api"]
 
 classifiers = [
     "Development Status :: 4 - Beta",
