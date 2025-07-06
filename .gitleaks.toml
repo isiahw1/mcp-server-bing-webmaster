@@ -1,0 +1,31 @@
+# Gitleaks configuration for additional secret scanning
+
+[allowlist]
+paths = [
+    ".internal-docs/",
+    "node_modules/",
+    ".venv/",
+    "dist/",
+    "build/",
+]
+
+[[rules]]
+id = "bing-api-key"
+description = "Bing Webmaster API Key"
+regex = '''(?i)(bing[_\-\.]?webmaster[_\-\.]?api[_\-\.]?key)(.{0,20})?['\"]([0-9a-zA-Z]{32,})['\""]'''
+tags = ["key", "Bing", "API"]
+
+[[rules]]
+id = "npm-token"
+description = "NPM Access Token"
+regex = '''(?i)(npm[_\-\.]?token|NPM_TOKEN)(.{0,20})?['\"]([0-9a-zA-Z\-]{36,})['\""]'''
+tags = ["key", "NPM", "token"]
+
+# Allow example keys in specific files
+[allowlist.regexes]
+regexes = [
+    '''BING_WEBMASTER_API_KEY=your_api_key_here''',
+    '''BING_WEBMASTER_API_KEY="your-api-key-here"''',
+    '''test[_\-]?key''',
+    '''example[_\-]?key''',
+]

@@ -49,14 +49,14 @@ console.log('   ✅ No sensitive files detected');
 console.log('\n📦 Validating package.json...');
 try {
   const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
-  
+
   if (!pkg.name || !pkg.version || !pkg.license) {
     console.error('   ❌ Missing required package.json fields');
     errors++;
   } else {
     console.log('   ✅ Required fields present');
   }
-  
+
   if (!pkg.repository || !pkg.bugs || !pkg.homepage) {
     console.warn('   ⚠️  Missing recommended fields (repository, bugs, homepage)');
   }

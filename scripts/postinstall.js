@@ -13,13 +13,13 @@ console.log('================================================\n');
 try {
   const pythonCommand = process.platform === 'win32' ? 'python' : 'python3';
   const pythonVersion = execSync(`${pythonCommand} --version`, { encoding: 'utf8' }).trim();
-  
+
   // Extract version number
   const versionMatch = pythonVersion.match(/Python (\d+)\.(\d+)\.(\d+)/);
   if (versionMatch) {
     const major = parseInt(versionMatch[1]);
     const minor = parseInt(versionMatch[2]);
-    
+
     if (major >= 3 && minor >= 10) {
       console.log('✅ Python requirement satisfied: ' + pythonVersion);
     } else {

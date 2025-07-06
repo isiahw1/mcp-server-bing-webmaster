@@ -2,7 +2,7 @@
 
 /**
  * MCP Server for Bing Webmaster Tools
- * 
+ *
  * This script runs the Python-based MCP server using the system Python
  * or a virtual environment if available.
  */

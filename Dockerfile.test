@@ -1,0 +1,19 @@
+FROM debian:bookworm
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    GLAMA_VERSION="1.0.0"
+
+RUN (apt-get update) && (apt-get install -y --no-install-recommends build-essential curl wget software-properties-common libssl-dev zlib1g-dev git python3 python3-pip python3-venv) && (rm -rf /var/lib/apt/lists/*) && (curl -fsSL https://deb.nodesource.com/setup_24.x | bash -) && (apt-get install -y nodejs) && (apt-get clean) && (npm install -g mcp-proxy@^5.3) && (npm install -g pnpm@10.12.1) && (node --version) && (curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR="/usr/local/bin" sh) && (python3 --version) && (apt-get clean) && (rm -rf /var/lib/apt/lists/*) && (rm -rf /tmp/*) && (rm -rf /var/tmp/*)
+
+WORKDIR /app
+
+# Copy local files instead of cloning
+COPY . .
+
+RUN (npm run build)
+
+# Make the start script executable
+RUN chmod +x /app/start-mcp.sh
+
+# Override CMD to run mcp-proxy with our Python server
+CMD ["mcp-proxy", "--port", "3000", "python3", "-m", "mcp_server_bwt"]

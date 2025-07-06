@@ -13,11 +13,7 @@
     "api",
     "search-console"
   ],
-  "author": {
-    "name": "Isiah Wheeler",
-    "email": "github@isiahwheeler.com",
-    "url": "https://github.com/isiahw1"
-  },
+  "author": "Isiah Wheeler <github@isiahwheeler.com> (https://github.com/isiahw1)",
   "license": "MIT",
   "homepage": "https://github.com/isiahw1/mcp-server-bing-webmaster#readme",
   "repository": {
@@ -47,12 +43,18 @@
     "scripts/"
   ],
   "scripts": {
+    "build": "uv pip install --python /usr/bin/python3 -e . && echo 'Build complete'",
     "test": "echo \"Tests require Python environment\" && exit 0",
     "prepublishOnly": "npm run validate",
     "validate": "node scripts/validate.js",
     "postinstall": "node scripts/postinstall.js || true",
     "check-publish": "npm pack --dry-run",
-    "view-package": "npm pack && tar -tf *.tgz && rm *.tgz"
+    "view-package": "npm pack && tar -tf *.tgz && rm *.tgz",
+    "sync-version": "node scripts/sync-version.js",
+    "preversion": "npm run sync-version",
+    "postversion": "npm run sync-version && git add mcp_server_bwt/version.py",
+    "setup": "npm install && ./scripts/setup-pre-commit.sh",
+    "security-scan": "pre-commit run --all-files"
   },
   "engines": {
     "node": ">=16.0.0",
@@ -71,5 +73,9 @@
     "access": "public",
     "registry": "https://registry.npmjs.org/"
   },
-  "packageManager": "npm@10.0.0"
+  "packageManager": "npm@10.0.0",
+  "dependencies": {
+    "@browserbasehq/stagehand": "^2.4.1",
+    "mcp-proxy": "^5.3.0"
+  }
 }

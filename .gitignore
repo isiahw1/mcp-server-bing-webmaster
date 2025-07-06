@@ -180,3 +180,6 @@ results/
 .env
 .env.*
 !.env.example
+
+# Internal documentation (not for public)
+.internal-docs/
