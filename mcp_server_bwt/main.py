@@ -19,9 +19,8 @@ logger = logging.getLogger(__name__)
 
 # Initialize MCP server with capabilities
 mcp = FastMCP(
-    "mcp-server-bing-webmaster",
-    version="1.0.0",
-    description="Direct access to Bing Webmaster Tools API with OData compatibility",
+    name="mcp-server-bing-webmaster",
+    instructions="Direct access to Bing Webmaster Tools API with OData compatibility",
 )
 
 # API configuration
