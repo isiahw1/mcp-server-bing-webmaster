@@ -183,3 +183,12 @@ results/
 
 # Internal documentation (not for public)
 .internal-docs/
+
+# Review artifacts
+.full-review/
+
+# MCP tool data
+data/
+
+# uv lock file
+uv.lock

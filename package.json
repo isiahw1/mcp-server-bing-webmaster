@@ -74,7 +74,5 @@
     "registry": "https://registry.npmjs.org/"
   },
   "packageManager": "npm@10.0.0",
-  "dependencies": {
-    "@isiahw1/mcp-server-bing-webmaster": "^1.0.1"
-  }
+  "dependencies": {}
 }

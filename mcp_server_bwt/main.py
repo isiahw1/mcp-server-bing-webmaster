@@ -7,7 +7,6 @@ enabling site management and analytics through AI assistants.
 
 import logging
 import os
-from datetime import datetime, timedelta
 from typing import Annotated, Any, Dict, List, Optional
 
 import httpx
@@ -25,10 +24,7 @@ mcp = FastMCP(
 
 # API configuration
 API_BASE_URL = "https://ssl.bing.com/webmaster/api.svc/json"
-API_KEY = os.getenv("BING_WEBMASTER_API_KEY")
-
-if not API_KEY:
-    raise ValueError("BING_WEBMASTER_API_KEY environment variable is required")
+API_KEY = os.getenv("BING_WEBMASTER_API_KEY", "")
 
 
 class BingWebmasterAPI:
@@ -37,24 +33,16 @@ class BingWebmasterAPI:
     def __init__(self, api_key: str):
         self.api_key = api_key
         self.base_url = API_BASE_URL
-        self.client = None
+        self._client: Optional[httpx.AsyncClient] = None
 
-    async def __aenter__(self):
-        # Create a new client for each context
-        self.client = httpx.AsyncClient(timeout=30.0)
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        # Close the client when exiting the context
-        if self.client:
-            await self.client.aclose()
-            self.client = None
-
-    async def close(self):
-        """Explicitly close the HTTP client."""
-        if self.client:
-            await self.client.aclose()
-            self.client = None
+    async def _ensure_client(self) -> httpx.AsyncClient:
+        """Get or create the persistent HTTP client with connection pooling."""
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(
+                timeout=httpx.Timeout(connect=5.0, read=30.0, write=10.0, pool=5.0),
+                limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
+            )
+        return self._client
 
     async def _make_request(
         self,
@@ -64,36 +52,27 @@ class BingWebmasterAPI:
         params: Optional[Dict[str, Any]] = None,
     ) -> Any:
         """Make a request to the Bing API and handle OData responses."""
-        if not self.client:
-            raise RuntimeError(
-                "API client not initialized. Use 'async with api:' context manager."
-            )
+        client = await self._ensure_client()
 
         headers = {"Content-Type": "application/json; charset=utf-8"}
 
-        # Build URL with API key
-        if "?" in endpoint:
-            url = f"{self.base_url}/{endpoint}&apikey={self.api_key}"
-        else:
-            url = f"{self.base_url}/{endpoint}?apikey={self.api_key}"
-
-        # Add additional parameters if provided
+        # Build URL with httpx params for proper encoding
+        url = f"{self.base_url}/{endpoint}"
+        all_params: Dict[str, Any] = {"apikey": self.api_key}
         if params:
-            for key, value in params.items():
-                url += f"&{key}={value}"
+            all_params.update(params)
 
         try:
             if method == "GET":
-                response = await self.client.get(url, headers=headers)
+                response = await client.get(url, headers=headers, params=all_params)
             else:
-                response = await self.client.request(
-                    method, url, headers=headers, json=json_data
+                response = await client.request(
+                    method, url, headers=headers, json=json_data, params=all_params
                 )
 
             if response.status_code != 200:
-                error_text = response.text
-                logger.error(f"API error {response.status_code}: {error_text}")
-                raise Exception(f"API error {response.status_code}: {error_text}")
+                logger.error("API error %d for %s", response.status_code, endpoint)
+                raise Exception(f"API error {response.status_code}: {response.text}")
 
             data = response.json()
 
@@ -103,10 +82,7 @@ class BingWebmasterAPI:
             return data
 
         except httpx.TimeoutException:
-            logger.error(f"Request timeout for {endpoint}")
-            raise Exception("Request timed out")
-        except Exception as e:
-            logger.error(f"Request failed: {str(e)}")
+            logger.error("Request timeout for %s", endpoint)
             raise
 
     def _ensure_type_field(self, data: Any, type_name: str) -> Any:
@@ -136,15 +112,12 @@ async def get_sites() -> List[Dict[str, Any]]:
     Returns:
         List of sites with their details including URL, verification status, etc.
     """
-    async with api:
-        sites = await api._make_request("GetUserSites")
-        return api._ensure_type_field(sites, "Site")
+    sites = await api._make_request("GetUserSites")
+    return api._ensure_type_field(sites, "Site")
 
 
 @mcp.tool(name="add_site", description="Add a new site to Bing Webmaster Tools")
-async def add_site(
-    site_url: Annotated[str, "The URL of the site to add"]
-) -> Dict[str, str]:
+async def add_site(site_url: Annotated[str, "The URL of the site to add"]) -> Dict[str, str]:
     """
     Add a new site to Bing Webmaster Tools.
 
@@ -154,15 +127,12 @@ async def add_site(
     Returns:
         Success message
     """
-    async with api:
-        await api._make_request("AddSite", "POST", {"siteUrl": site_url})
-        return {"message": f"Site {site_url} added successfully"}
+    await api._make_request("AddSite", "POST", {"siteUrl": site_url})
+    return {"message": f"Site {site_url} added successfully"}
 
 
 @mcp.tool(name="verify_site", description="Attempt to verify ownership of a site")
-async def verify_site(
-    site_url: Annotated[str, "The URL of the site to verify"]
-) -> Dict[str, Any]:
+async def verify_site(site_url: Annotated[str, "The URL of the site to verify"]) -> Dict[str, Any]:
     """
     Attempt to verify ownership of a site.
 
@@ -172,15 +142,12 @@ async def verify_site(
     Returns:
         Verification result
     """
-    async with api:
-        result = await api._make_request("VerifySite", "POST", {"siteUrl": site_url})
-        return {"verified": result, "site_url": site_url}
+    result = await api._make_request("VerifySite", "POST", {"siteUrl": site_url})
+    return {"verified": result, "site_url": site_url}
 
 
 @mcp.tool(name="remove_site", description="Remove a site from Bing Webmaster Tools")
-async def remove_site(
-    site_url: Annotated[str, "The URL of the site to remove"]
-) -> Dict[str, str]:
+async def remove_site(site_url: Annotated[str, "The URL of the site to remove"]) -> Dict[str, str]:
     """
     Remove a site from Bing Webmaster Tools.
 
@@ -190,9 +157,8 @@ async def remove_site(
     Returns:
         Success message
     """
-    async with api:
-        await api._make_request("RemoveSite", "POST", {"siteUrl": site_url})
-        return {"message": f"Site {site_url} removed successfully"}
+    await api._make_request("RemoveSite", "POST", {"siteUrl": site_url})
+    return {"message": f"Site {site_url} removed successfully"}
 
 
 # Traffic Analysis Tools
@@ -200,9 +166,7 @@ async def remove_site(
     name="get_query_stats",
     description="Get detailed traffic statistics for top queries.",
 )
-async def get_query_stats(
-    site_url: Annotated[str, "The URL of the site"]
-) -> List[Dict[str, Any]]:
+async def get_query_stats(site_url: Annotated[str, "The URL of the site"]) -> List[Dict[str, Any]]:
     """
     Get detailed traffic statistics for top queries.
 
@@ -212,15 +176,12 @@ async def get_query_stats(
     Returns:
         List of query statistics with clicks, impressions, CTR, and position
     """
-    async with api:
-        stats = await api._make_request(f"GetQueryStats?siteUrl={site_url}")
-        return api._ensure_type_field(stats, "QueryStats")
+    stats = await api._make_request("GetQueryStats", params={"siteUrl": site_url})
+    return api._ensure_type_field(stats, "QueryStats")
 
 
 @mcp.tool(name="get_page_stats", description="Get traffic statistics for top pages.")
-async def get_page_stats(
-    site_url: Annotated[str, "The URL of the site"]
-) -> List[Dict[str, Any]]:
+async def get_page_stats(site_url: Annotated[str, "The URL of the site"]) -> List[Dict[str, Any]]:
     """
     Get traffic statistics for top pages.
 
@@ -230,9 +191,8 @@ async def get_page_stats(
     Returns:
         List of page statistics
     """
-    async with api:
-        stats = await api._make_request(f"GetPageStats?siteUrl={site_url}")
-        return api._ensure_type_field(stats, "PageStats")
+    stats = await api._make_request("GetPageStats", params={"siteUrl": site_url})
+    return api._ensure_type_field(stats, "PageStats")
 
 
 @mcp.tool(
@@ -240,7 +200,7 @@ async def get_page_stats(
     description="Get overall ranking and traffic statistics.",
 )
 async def get_rank_and_traffic_stats(
-    site_url: Annotated[str, "The URL of the site"]
+    site_url: Annotated[str, "The URL of the site"],
 ) -> Dict[str, Any]:
     """
     Get overall ranking and traffic statistics.
@@ -251,18 +211,13 @@ async def get_rank_and_traffic_stats(
     Returns:
         Overall site statistics
     """
-    async with api:
-        stats = await api._make_request(f"GetRankAndTrafficStats?siteUrl={site_url}")
-        return api._ensure_type_field(stats, "RankAndTrafficStats")
+    stats = await api._make_request("GetRankAndTrafficStats", params={"siteUrl": site_url})
+    return api._ensure_type_field(stats, "RankAndTrafficStats")
 
 
 # Crawling Tools
-@mcp.tool(
-    name="get_crawl_stats", description="Retrieve crawl statistics for a specific site."
-)
-async def get_crawl_stats(
-    site_url: Annotated[str, "The URL of the site"]
-) -> List[Dict[str, Any]]:
+@mcp.tool(name="get_crawl_stats", description="Retrieve crawl statistics for a specific site.")
+async def get_crawl_stats(site_url: Annotated[str, "The URL of the site"]) -> List[Dict[str, Any]]:
     """
     Retrieve crawl statistics for a specific site.
 
@@ -272,17 +227,12 @@ async def get_crawl_stats(
     Returns:
         List of daily crawl statistics
     """
-    async with api:
-        stats = await api._make_request(f"GetCrawlStats?siteUrl={site_url}")
-        return api._ensure_type_field(stats, "CrawlStats")
+    stats = await api._make_request("GetCrawlStats", params={"siteUrl": site_url})
+    return api._ensure_type_field(stats, "CrawlStats")
 
 
-@mcp.tool(
-    name="get_crawl_issues", description="Get crawl issues and errors for a site."
-)
-async def get_crawl_issues(
-    site_url: Annotated[str, "The URL of the site"]
-) -> List[Dict[str, Any]]:
+@mcp.tool(name="get_crawl_issues", description="Get crawl issues and errors for a site.")
+async def get_crawl_issues(site_url: Annotated[str, "The URL of the site"]) -> List[Dict[str, Any]]:
     """
     Get crawl issues and errors for a site.
 
@@ -292,9 +242,8 @@ async def get_crawl_issues(
     Returns:
         List of crawl issues
     """
-    async with api:
-        issues = await api._make_request(f"GetCrawlIssues?siteUrl={site_url}")
-        return api._ensure_type_field(issues, "CrawlIssue")
+    issues = await api._make_request("GetCrawlIssues", params={"siteUrl": site_url})
+    return api._ensure_type_field(issues, "CrawlIssue")
 
 
 # URL Submission Tools
@@ -313,9 +262,8 @@ async def submit_url(
     Returns:
         Success message
     """
-    async with api:
-        await api._make_request("SubmitUrl", "POST", {"siteUrl": site_url, "url": url})
-        return {"message": f"URL {url} submitted successfully"}
+    await api._make_request("SubmitUrl", "POST", {"siteUrl": site_url, "url": url})
+    return {"message": f"URL {url} submitted successfully"}
 
 
 @mcp.tool(name="submit_url_batch", description="Submit multiple URLs for indexing.")
@@ -332,11 +280,10 @@ async def submit_url_batch(
     Returns:
         Submission result
     """
-    async with api:
-        result = await api._make_request(
-            "SubmitUrlBatch", "POST", {"siteUrl": site_url, "urlList": urls}
-        )
-        return {"message": f"Submitted {len(urls)} URLs", "result": result}
+    result = await api._make_request(
+        "SubmitUrlBatch", "POST", {"siteUrl": site_url, "urlList": urls}
+    )
+    return {"message": f"Submitted {len(urls)} URLs", "result": result}
 
 
 @mcp.tool(
@@ -344,7 +291,7 @@ async def submit_url_batch(
     description="Get information about URL submission quota and usage.",
 )
 async def get_url_submission_quota(
-    site_url: Annotated[str, "The URL of the site"]
+    site_url: Annotated[str, "The URL of the site"],
 ) -> Dict[str, Any]:
     """
     Get information about URL submission quota and usage.
@@ -355,9 +302,8 @@ async def get_url_submission_quota(
     Returns:
         Quota information
     """
-    async with api:
-        quota = await api._make_request(f"GetUrlSubmissionQuota?siteUrl={site_url}")
-        return api._ensure_type_field(quota, "UrlSubmissionQuota")
+    quota = await api._make_request("GetUrlSubmissionQuota", params={"siteUrl": site_url})
+    return api._ensure_type_field(quota, "UrlSubmissionQuota")
 
 
 # Sitemap Tools
@@ -378,11 +324,8 @@ async def submit_sitemap(
     Returns:
         Success message
     """
-    async with api:
-        await api._make_request(
-            "SubmitFeed", "POST", {"siteUrl": site_url, "feedUrl": sitemap_url}
-        )
-        return {"message": f"Sitemap {sitemap_url} submitted successfully"}
+    await api._make_request("SubmitFeed", "POST", {"siteUrl": site_url, "feedUrl": sitemap_url})
+    return {"message": f"Sitemap {sitemap_url} submitted successfully"}
 
 
 @mcp.tool(name="remove_sitemap", description="Remove a sitemap from Bing.")
@@ -400,11 +343,8 @@ async def remove_sitemap(
     Returns:
         Success message
     """
-    async with api:
-        await api._make_request(
-            "RemoveFeed", "POST", {"siteUrl": site_url, "feedUrl": sitemap_url}
-        )
-        return {"message": f"Sitemap {sitemap_url} removed successfully"}
+    await api._make_request("RemoveFeed", "POST", {"siteUrl": site_url, "feedUrl": sitemap_url})
+    return {"message": f"Sitemap {sitemap_url} removed successfully"}
 
 
 # Keyword Analysis Tools
@@ -426,14 +366,11 @@ async def get_keyword_data(
     Returns:
         Keyword performance data
     """
-    async with api:
-        data = await api._make_request(f"GetKeyword?siteUrl={site_url}&query={query}")
-        return api._ensure_type_field(data, "KeywordData")
+    data = await api._make_request("GetKeyword", params={"siteUrl": site_url, "query": query})
+    return api._ensure_type_field(data, "KeywordData")
 
 
-@mcp.tool(
-    name="get_related_keywords", description="Get keywords related to a specific query."
-)
+@mcp.tool(name="get_related_keywords", description="Get keywords related to a specific query.")
 async def get_related_keywords(
     site_url: Annotated[str, "The URL of the site"],
     query: Annotated[str, "The base keyword/query"],
@@ -448,18 +385,15 @@ async def get_related_keywords(
     Returns:
         List of related keywords
     """
-    async with api:
-        keywords = await api._make_request(
-            f"GetRelatedKeywords?siteUrl={site_url}&query={query}"
-        )
-        return api._ensure_type_field(keywords, "RelatedKeyword")
+    keywords = await api._make_request(
+        "GetRelatedKeywords", params={"siteUrl": site_url, "query": query}
+    )
+    return api._ensure_type_field(keywords, "RelatedKeyword")
 
 
 # Link Analysis Tools
 @mcp.tool(name="get_link_counts", description="Get inbound link counts for a site.")
-async def get_link_counts(
-    site_url: Annotated[str, "The URL of the site"]
-) -> Dict[str, Any]:
+async def get_link_counts(site_url: Annotated[str, "The URL of the site"]) -> Dict[str, Any]:
     """
     Get inbound link counts for a site.
 
@@ -469,9 +403,8 @@ async def get_link_counts(
     Returns:
         Link count statistics
     """
-    async with api:
-        counts = await api._make_request(f"GetLinkCounts?siteUrl={site_url}")
-        return api._ensure_type_field(counts, "LinkCounts")
+    counts = await api._make_request("GetLinkCounts", params={"siteUrl": site_url})
+    return api._ensure_type_field(counts, "LinkCounts")
 
 
 @mcp.tool(name="get_url_links", description="Get inbound links for specific site URL.")
@@ -491,18 +424,15 @@ async def get_url_links(
     Returns:
         LinkDetails object with inbound link information
     """
-    async with api:
-        details = await api._make_request(
-            f"GetUrlLinks?siteUrl={site_url}&link={link}&page={page}"
-        )
-        return api._ensure_type_field(details, "LinkDetails")
+    details = await api._make_request(
+        "GetUrlLinks", params={"siteUrl": site_url, "link": link, "page": page}
+    )
+    return api._ensure_type_field(details, "LinkDetails")
 
 
 # Content Blocking Tools
 @mcp.tool(name="get_blocked_urls", description="Get list of blocked URLs for a site.")
-async def get_blocked_urls(
-    site_url: Annotated[str, "The URL of the site"]
-) -> List[Dict[str, Any]]:
+async def get_blocked_urls(site_url: Annotated[str, "The URL of the site"]) -> List[Dict[str, Any]]:
     """
     Get list of blocked URLs for a site.
 
@@ -512,14 +442,11 @@ async def get_blocked_urls(
     Returns:
         List of blocked URLs
     """
-    async with api:
-        urls = await api._make_request(f"GetBlockedUrls?siteUrl={site_url}")
-        return api._ensure_type_field(urls, "BlockedUrl")
+    urls = await api._make_request("GetBlockedUrls", params={"siteUrl": site_url})
+    return api._ensure_type_field(urls, "BlockedUrl")
 
 
-@mcp.tool(
-    name="add_blocked_url", description="Block a URL or directory from being crawled."
-)
+@mcp.tool(name="add_blocked_url", description="Block a URL or directory from being crawled.")
 async def add_blocked_url(
     site_url: Annotated[str, "The URL of the site"],
     url: Annotated[str, "The URL or directory to block"],
@@ -536,13 +463,12 @@ async def add_blocked_url(
     Returns:
         Success message
     """
-    async with api:
-        await api._make_request(
-            "AddBlockedUrl",
-            "POST",
-            {"siteUrl": site_url, "blockedUrl": url, "blockType": block_type},
-        )
-        return {"message": f"URL {url} blocked successfully"}
+    await api._make_request(
+        "AddBlockedUrl",
+        "POST",
+        {"siteUrl": site_url, "blockedUrl": url, "blockType": block_type},
+    )
+    return {"message": f"URL {url} blocked successfully"}
 
 
 @mcp.tool(name="remove_blocked_url", description="Remove a URL from the blocked list.")
@@ -560,11 +486,8 @@ async def remove_blocked_url(
     Returns:
         Success message
     """
-    async with api:
-        await api._make_request(
-            "RemoveBlockedUrl", "POST", {"siteUrl": site_url, "blockedUrl": url}
-        )
-        return {"message": f"URL {url} unblocked successfully"}
+    await api._make_request("RemoveBlockedUrl", "POST", {"siteUrl": site_url, "blockedUrl": url})
+    return {"message": f"URL {url} unblocked successfully"}
 
 
 # Advanced Query and Page Statistics
@@ -586,11 +509,10 @@ async def get_query_page_stats(
     Returns:
         List of page statistics for the given query
     """
-    async with api:
-        stats = await api._make_request(
-            f"GetQueryPageStats?siteUrl={site_url}&query={query}"
-        )
-        return api._ensure_type_field(stats, "QueryPageStats")
+    stats = await api._make_request(
+        "GetQueryPageStats", params={"siteUrl": site_url, "query": query}
+    )
+    return api._ensure_type_field(stats, "QueryPageStats")
 
 
 @mcp.tool(
@@ -613,11 +535,11 @@ async def get_query_page_detail_stats(
     Returns:
         Detailed statistics for the query-page combination
     """
-    async with api:
-        stats = await api._make_request(
-            f"GetQueryPageDetailStats?siteUrl={site_url}&query={query}&page={page}"
-        )
-        return api._ensure_type_field(stats, "DetailedQueryStats")
+    stats = await api._make_request(
+        "GetQueryPageDetailStats",
+        params={"siteUrl": site_url, "query": query, "page": page},
+    )
+    return api._ensure_type_field(stats, "DetailedQueryStats")
 
 
 # URL Information and Analysis
@@ -639,9 +561,8 @@ async def get_url_info(
     Returns:
         Detailed information about the URL's index status
     """
-    async with api:
-        info = await api._make_request(f"GetUrlInfo?siteUrl={site_url}&url={url}")
-        return api._ensure_type_field(info, "UrlInfo")
+    info = await api._make_request("GetUrlInfo", params={"siteUrl": site_url, "url": url})
+    return api._ensure_type_field(info, "UrlInfo")
 
 
 # Content Submission
@@ -669,22 +590,21 @@ async def submit_content(
     Returns:
         Success message
     """
-    async with api:
-        if content_length == -1:
-            content_length = len(content.encode("utf-8"))
+    if content_length == -1:
+        content_length = len(content.encode("utf-8"))
 
-        await api._make_request(
-            "SubmitContent",
-            "POST",
-            {
-                "siteUrl": site_url,
-                "url": url,
-                "content": content,
-                "contentType": content_type,
-                "contentLength": content_length,
-            },
-        )
-        return {"message": f"Content for {url} submitted successfully"}
+    await api._make_request(
+        "SubmitContent",
+        "POST",
+        {
+            "siteUrl": site_url,
+            "url": url,
+            "content": content,
+            "contentType": content_type,
+            "contentLength": content_length,
+        },
+    )
+    return {"message": f"Content for {url} submitted successfully"}
 
 
 # Keyword Analysis
@@ -710,21 +630,18 @@ async def get_keyword_stats(
     Returns:
         Historical keyword statistics
     """
-    async with api:
-        params = f"siteUrl={site_url}&query={query}"
-        if country:
-            params += f"&country={country}"
-        if language:
-            params += f"&language={language}"
+    req_params: Dict[str, Any] = {"siteUrl": site_url, "query": query}
+    if country:
+        req_params["country"] = country
+    if language:
+        req_params["language"] = language
 
-        stats = await api._make_request(f"GetKeywordStats?{params}")
-        return api._ensure_type_field(stats, "KeywordStats")
+    stats = await api._make_request("GetKeywordStats", params=req_params)
+    return api._ensure_type_field(stats, "KeywordStats")
 
 
 # Connected Pages Management
-@mcp.tool(
-    name="add_connected_page", description="Add a page that has a link to your website."
-)
+@mcp.tool(name="add_connected_page", description="Add a page that has a link to your website.")
 async def add_connected_page(
     site_url: Annotated[str, "The URL of your site"],
     connected_url: Annotated[str, "The URL of the page linking to your site"],
@@ -739,19 +656,18 @@ async def add_connected_page(
     Returns:
         Success message
     """
-    async with api:
-        await api._make_request(
-            "AddConnectedPage",
-            "POST",
-            {"siteUrl": site_url, "connectedPageUrl": connected_url},
-        )
-        return {"message": f"Connected page {connected_url} added successfully"}
+    await api._make_request(
+        "AddConnectedPage",
+        "POST",
+        {"siteUrl": site_url, "connectedPageUrl": connected_url},
+    )
+    return {"message": f"Connected page {connected_url} added successfully"}
 
 
 # Deep Link Management
 @mcp.tool(name="get_deep_link_blocks", description="Get list of blocked deep links.")
 async def get_deep_link_blocks(
-    site_url: Annotated[str, "The URL of the site"]
+    site_url: Annotated[str, "The URL of the site"],
 ) -> List[Dict[str, Any]]:
     """
     Get list of blocked deep links.
@@ -762,9 +678,8 @@ async def get_deep_link_blocks(
     Returns:
         List of blocked deep links
     """
-    async with api:
-        blocks = await api._make_request(f"GetDeepLinkBlocks?siteUrl={site_url}")
-        return api._ensure_type_field(blocks, "DeepLinkBlock")
+    blocks = await api._make_request("GetDeepLinkBlocks", params={"siteUrl": site_url})
+    return api._ensure_type_field(blocks, "DeepLinkBlock")
 
 
 @mcp.tool(
@@ -789,18 +704,17 @@ async def add_deep_link_block(
     Returns:
         Success message
     """
-    async with api:
-        await api._make_request(
-            "AddDeepLinkBlock",
-            "POST",
-            {
-                "siteUrl": site_url,
-                "urlPattern": url_pattern,
-                "blockType": block_type,
-                "reason": reason,
-            },
-        )
-        return {"message": f"Deep link block for {url_pattern} added successfully"}
+    await api._make_request(
+        "AddDeepLinkBlock",
+        "POST",
+        {
+            "siteUrl": site_url,
+            "urlPattern": url_pattern,
+            "blockType": block_type,
+            "reason": reason,
+        },
+    )
+    return {"message": f"Deep link block for {url_pattern} added successfully"}
 
 
 # URL Query Parameters
@@ -809,7 +723,7 @@ async def add_deep_link_block(
     description="Get URL normalization parameters. Note: May require special permissions.",
 )
 async def get_query_parameters(
-    site_url: Annotated[str, "The URL of the site"]
+    site_url: Annotated[str, "The URL of the site"],
 ) -> List[Dict[str, Any]]:
     """
     Get URL normalization parameters.
@@ -820,9 +734,8 @@ async def get_query_parameters(
     Returns:
         List of query parameters used for URL normalization
     """
-    async with api:
-        params = await api._make_request(f"GetQueryParameters?siteUrl={site_url}")
-        return api._ensure_type_field(params, "QueryParameter")
+    params = await api._make_request("GetQueryParameters", params={"siteUrl": site_url})
+    return api._ensure_type_field(params, "QueryParameter")
 
 
 @mcp.tool(name="add_query_parameter", description="Add URL normalization parameter.")
@@ -840,20 +753,15 @@ async def add_query_parameter(
     Returns:
         Success message
     """
-    async with api:
-        await api._make_request(
-            "AddQueryParameter", "POST", {"siteUrl": site_url, "parameter": parameter}
-        )
-        return {"message": f"Query parameter {parameter} added successfully"}
+    await api._make_request(
+        "AddQueryParameter", "POST", {"siteUrl": site_url, "parameter": parameter}
+    )
+    return {"message": f"Query parameter {parameter} added successfully"}
 
 
 # Site Roles Management
-@mcp.tool(
-    name="get_site_roles", description="Get list of users with access to the site."
-)
-async def get_site_roles(
-    site_url: Annotated[str, "The URL of the site"]
-) -> List[Dict[str, Any]]:
+@mcp.tool(name="get_site_roles", description="Get list of users with access to the site.")
+async def get_site_roles(site_url: Annotated[str, "The URL of the site"]) -> List[Dict[str, Any]]:
     """
     Get list of users with access to the site.
 
@@ -863,9 +771,8 @@ async def get_site_roles(
     Returns:
         List of users and their roles
     """
-    async with api:
-        roles = await api._make_request(f"GetSiteRoles?siteUrl={site_url}")
-        return api._ensure_type_field(roles, "SiteRoles")
+    roles = await api._make_request("GetSiteRoles", params={"siteUrl": site_url})
+    return api._ensure_type_field(roles, "SiteRoles")
 
 
 @mcp.tool(name="add_site_roles", description="Delegate site access to another user.")
@@ -891,27 +798,24 @@ async def add_site_roles(
     Returns:
         Success message
     """
-    async with api:
-        await api._make_request(
-            "AddSiteRoles",
-            "POST",
-            {
-                "siteUrl": site_url,
-                "userEmail": user_email,
-                "authToken": auth_token,
-                "roleType": role_type,
-                "isExplicit": is_explicit,
-                "shouldNotify": should_notify,
-            },
-        )
-        return {"message": f"Access granted to {user_email} successfully"}
+    await api._make_request(
+        "AddSiteRoles",
+        "POST",
+        {
+            "siteUrl": site_url,
+            "userEmail": user_email,
+            "authToken": auth_token,
+            "roleType": role_type,
+            "isExplicit": is_explicit,
+            "shouldNotify": should_notify,
+        },
+    )
+    return {"message": f"Access granted to {user_email} successfully"}
 
 
 # Feed/Sitemap Management Enhancement
 @mcp.tool(name="get_feeds", description="Get all RSS/Atom feeds for a site.")
-async def get_feeds(
-    site_url: Annotated[str, "The URL of the site"]
-) -> List[Dict[str, Any]]:
+async def get_feeds(site_url: Annotated[str, "The URL of the site"]) -> List[Dict[str, Any]]:
     """
     Get all RSS/Atom feeds for a site.
 
@@ -921,9 +825,8 @@ async def get_feeds(
     Returns:
         List of feeds
     """
-    async with api:
-        feeds = await api._make_request(f"GetFeeds?siteUrl={site_url}")
-        return api._ensure_type_field(feeds, "Feed")
+    feeds = await api._make_request("GetFeeds", params={"siteUrl": site_url})
+    return api._ensure_type_field(feeds, "Feed")
 
 
 # Content Submission Quota
@@ -932,7 +835,7 @@ async def get_feeds(
     description="Get content submission quota information.",
 )
 async def get_content_submission_quota(
-    site_url: Annotated[str, "The URL of the site"]
+    site_url: Annotated[str, "The URL of the site"],
 ) -> Dict[str, Any]:
     """
     Get content submission quota information.
@@ -943,9 +846,8 @@ async def get_content_submission_quota(
     Returns:
         Content submission quota details
     """
-    async with api:
-        quota = await api._make_request(f"GetContentSubmissionQuota?siteUrl={site_url}")
-        return api._ensure_type_field(quota, "ContentSubmissionQuota")
+    quota = await api._make_request("GetContentSubmissionQuota", params={"siteUrl": site_url})
+    return api._ensure_type_field(quota, "ContentSubmissionQuota")
 
 
 # Traffic Information
@@ -966,18 +868,15 @@ async def get_url_traffic_info(
     Returns:
         Traffic information for each URL
     """
-    async with api:
-        traffic_info = await api._make_request(
-            "GetUrlTrafficInfo", "POST", {"siteUrl": site_url, "urls": urls}
-        )
-        return api._ensure_type_field(traffic_info, "UrlTrafficInfo")
+    traffic_info = await api._make_request(
+        "GetUrlTrafficInfo", "POST", {"siteUrl": site_url, "urls": urls}
+    )
+    return api._ensure_type_field(traffic_info, "UrlTrafficInfo")
 
 
 # Crawl Settings Management
 @mcp.tool(name="get_crawl_settings", description="Get crawl settings for a site.")
-async def get_crawl_settings(
-    site_url: Annotated[str, "The URL of the site"]
-) -> Dict[str, Any]:
+async def get_crawl_settings(site_url: Annotated[str, "The URL of the site"]) -> Dict[str, Any]:
     """
     Get crawl settings for a site.
 
@@ -987,9 +886,8 @@ async def get_crawl_settings(
     Returns:
         Crawl settings configuration
     """
-    async with api:
-        settings = await api._make_request(f"GetCrawlSettings?siteUrl={site_url}")
-        return api._ensure_type_field(settings, "CrawlSettings")
+    settings = await api._make_request("GetCrawlSettings", params={"siteUrl": site_url})
+    return api._ensure_type_field(settings, "CrawlSettings")
 
 
 @mcp.tool(name="update_crawl_settings", description="Update crawl settings for a site.")
@@ -1007,11 +905,10 @@ async def update_crawl_settings(
     Returns:
         Success message
     """
-    async with api:
-        await api._make_request(
-            "SaveCrawlSettings", "POST", {"siteUrl": site_url, "crawlRate": crawl_rate}
-        )
-        return {"message": f"Crawl settings updated successfully"}
+    await api._make_request(
+        "SaveCrawlSettings", "POST", {"siteUrl": site_url, "crawlRate": crawl_rate}
+    )
+    return {"message": "Crawl settings updated successfully"}
 
 
 # Country/Region Settings
@@ -1020,7 +917,7 @@ async def update_crawl_settings(
     description="Get country/region targeting settings. Note: May require special permissions.",
 )
 async def get_country_region_settings(
-    site_url: Annotated[str, "The URL of the site"]
+    site_url: Annotated[str, "The URL of the site"],
 ) -> List[Dict[str, Any]]:
     """
     Get country/region targeting settings.
@@ -1031,11 +928,8 @@ async def get_country_region_settings(
     Returns:
         List of country/region settings
     """
-    async with api:
-        settings = await api._make_request(
-            f"GetCountryRegionSettings?siteUrl={site_url}"
-        )
-        return api._ensure_type_field(settings, "CountryRegionSettings")
+    settings = await api._make_request("GetCountryRegionSettings", params={"siteUrl": site_url})
+    return api._ensure_type_field(settings, "CountryRegionSettings")
 
 
 @mcp.tool(
@@ -1058,22 +952,19 @@ async def add_country_region_settings(
     Returns:
         Success message
     """
-    async with api:
-        await api._make_request(
-            "AddCountryRegionSettings",
-            "POST",
-            {
-                "siteUrl": site_url,
-                "settings": {"countryCode": country_code, "regionCode": region_code},
-            },
-        )
-        return {"message": f"Country/region settings added successfully"}
+    await api._make_request(
+        "AddCountryRegionSettings",
+        "POST",
+        {
+            "siteUrl": site_url,
+            "settings": {"countryCode": country_code, "regionCode": region_code},
+        },
+    )
+    return {"message": "Country/region settings added successfully"}
 
 
 # Remove Methods
-@mcp.tool(
-    name="remove_query_parameter", description="Remove a URL normalization parameter."
-)
+@mcp.tool(name="remove_query_parameter", description="Remove a URL normalization parameter.")
 async def remove_query_parameter(
     site_url: Annotated[str, "The URL of the site"],
     parameter: Annotated[str, "The query parameter to remove"],
@@ -1088,13 +979,12 @@ async def remove_query_parameter(
     Returns:
         Success message
     """
-    async with api:
-        await api._make_request(
-            "RemoveQueryParameter",
-            "POST",
-            {"siteUrl": site_url, "parameter": parameter},
-        )
-        return {"message": f"Query parameter {parameter} removed successfully"}
+    await api._make_request(
+        "RemoveQueryParameter",
+        "POST",
+        {"siteUrl": site_url, "parameter": parameter},
+    )
+    return {"message": f"Query parameter {parameter} removed successfully"}
 
 
 @mcp.tool(name="remove_deep_link_block", description="Remove a deep link block.")
@@ -1112,13 +1002,12 @@ async def remove_deep_link_block(
     Returns:
         Success message
     """
-    async with api:
-        await api._make_request(
-            "RemoveDeepLinkBlock",
-            "POST",
-            {"siteUrl": site_url, "urlPattern": url_pattern},
-        )
-        return {"message": f"Deep link block for {url_pattern} removed successfully"}
+    await api._make_request(
+        "RemoveDeepLinkBlock",
+        "POST",
+        {"siteUrl": site_url, "urlPattern": url_pattern},
+    )
+    return {"message": f"Deep link block for {url_pattern} removed successfully"}
 
 
 # Page Preview Block Management
@@ -1142,13 +1031,12 @@ async def add_page_preview_block(
     Returns:
         Success message
     """
-    async with api:
-        await api._make_request(
-            "AddPagePreviewBlock",
-            "POST",
-            {"siteUrl": site_url, "blockUrl": block_url, "blockType": block_type},
-        )
-        return {"message": f"Page preview block for {block_url} added successfully"}
+    await api._make_request(
+        "AddPagePreviewBlock",
+        "POST",
+        {"siteUrl": site_url, "blockUrl": block_url, "blockType": block_type},
+    )
+    return {"message": f"Page preview block for {block_url} added successfully"}
 
 
 @mcp.tool(
@@ -1156,7 +1044,7 @@ async def add_page_preview_block(
     description="Get list of active page preview blocks.",
 )
 async def get_active_page_preview_blocks(
-    site_url: Annotated[str, "The URL of the site"]
+    site_url: Annotated[str, "The URL of the site"],
 ) -> List[Dict[str, Any]]:
     """
     Get list of active page preview blocks.
@@ -1167,11 +1055,8 @@ async def get_active_page_preview_blocks(
     Returns:
         List of active page preview blocks
     """
-    async with api:
-        blocks = await api._make_request(
-            f"GetActivePagePreviewBlocks?siteUrl={site_url}"
-        )
-        return api._ensure_type_field(blocks, "PagePreviewBlock")
+    blocks = await api._make_request("GetActivePagePreviewBlocks", params={"siteUrl": site_url})
+    return api._ensure_type_field(blocks, "PagePreviewBlock")
 
 
 @mcp.tool(name="remove_page_preview_block", description="Remove a page preview block.")
@@ -1189,13 +1074,12 @@ async def remove_page_preview_block(
     Returns:
         Success message
     """
-    async with api:
-        await api._make_request(
-            "RemovePagePreviewBlock",
-            "POST",
-            {"siteUrl": site_url, "blockUrl": block_url},
-        )
-        return {"message": f"Page preview block for {block_url} removed successfully"}
+    await api._make_request(
+        "RemovePagePreviewBlock",
+        "POST",
+        {"siteUrl": site_url, "blockUrl": block_url},
+    )
+    return {"message": f"Page preview block for {block_url} removed successfully"}
 
 
 # Query Parameter Management Enhancement
@@ -1219,14 +1103,13 @@ async def enable_disable_query_parameter(
     Returns:
         Success message
     """
-    async with api:
-        await api._make_request(
-            "EnableDisableQueryParameter",
-            "POST",
-            {"siteUrl": site_url, "parameter": parameter, "enabled": enabled},
-        )
-        status = "enabled" if enabled else "disabled"
-        return {"message": f"Query parameter {parameter} {status} successfully"}
+    await api._make_request(
+        "EnableDisableQueryParameter",
+        "POST",
+        {"siteUrl": site_url, "parameter": parameter, "enabled": enabled},
+    )
+    status = "enabled" if enabled else "disabled"
+    return {"message": f"Query parameter {parameter} {status} successfully"}
 
 
 # URL Fetching Tools
@@ -1245,17 +1128,12 @@ async def fetch_url(
     Returns:
         Success message
     """
-    async with api:
-        await api._make_request("FetchUrl", "POST", {"siteUrl": site_url, "url": url})
-        return {"message": f"Fetch request for {url} submitted successfully"}
+    await api._make_request("FetchUrl", "POST", {"siteUrl": site_url, "url": url})
+    return {"message": f"Fetch request for {url} submitted successfully"}
 
 
-@mcp.tool(
-    name="get_fetched_urls", description="Get list of URLs that have been fetched."
-)
-async def get_fetched_urls(
-    site_url: Annotated[str, "The URL of the site"]
-) -> List[Dict[str, Any]]:
+@mcp.tool(name="get_fetched_urls", description="Get list of URLs that have been fetched.")
+async def get_fetched_urls(site_url: Annotated[str, "The URL of the site"]) -> List[Dict[str, Any]]:
     """
     Get list of URLs that have been fetched.
 
@@ -1265,9 +1143,8 @@ async def get_fetched_urls(
     Returns:
         List of fetched URLs
     """
-    async with api:
-        urls = await api._make_request(f"GetFetchedUrls?siteUrl={site_url}")
-        return api._ensure_type_field(urls, "FetchedUrl")
+    urls = await api._make_request("GetFetchedUrls", params={"siteUrl": site_url})
+    return api._ensure_type_field(urls, "FetchedUrl")
 
 
 @mcp.tool(
@@ -1288,11 +1165,10 @@ async def get_fetched_url_details(
     Returns:
         Detailed information about the fetched URL
     """
-    async with api:
-        details = await api._make_request(
-            f"GetFetchedUrlDetails?siteUrl={site_url}&url={url}"
-        )
-        return api._ensure_type_field(details, "FetchedUrlDetails")
+    details = await api._make_request(
+        "GetFetchedUrlDetails", params={"siteUrl": site_url, "url": url}
+    )
+    return api._ensure_type_field(details, "FetchedUrlDetails")
 
 
 # Connected Pages Enhancement
@@ -1301,7 +1177,7 @@ async def get_fetched_url_details(
     description="Get list of connected pages that link to your site.",
 )
 async def get_connected_pages(
-    site_url: Annotated[str, "The URL of the site"]
+    site_url: Annotated[str, "The URL of the site"],
 ) -> List[Dict[str, Any]]:
     """
     Get list of connected pages that link to your site.
@@ -1312,9 +1188,8 @@ async def get_connected_pages(
     Returns:
         List of connected pages
     """
-    async with api:
-        pages = await api._make_request(f"GetConnectedPages?siteUrl={site_url}")
-        return api._ensure_type_field(pages, "ConnectedPage")
+    pages = await api._make_request("GetConnectedPages", params={"siteUrl": site_url})
+    return api._ensure_type_field(pages, "ConnectedPage")
 
 
 # Children URL Information
@@ -1336,11 +1211,10 @@ async def get_children_url_info(
     Returns:
         List of child URL information
     """
-    async with api:
-        children = await api._make_request(
-            f"GetChildrenUrlInfo?siteUrl={site_url}&parentUrl={parent_url}"
-        )
-        return api._ensure_type_field(children, "ChildUrlInfo")
+    children = await api._make_request(
+        "GetChildrenUrlInfo", params={"siteUrl": site_url, "parentUrl": parent_url}
+    )
+    return api._ensure_type_field(children, "ChildUrlInfo")
 
 
 @mcp.tool(
@@ -1363,13 +1237,12 @@ async def get_children_url_traffic_info(
     Returns:
         Traffic information for child URLs
     """
-    async with api:
-        traffic = await api._make_request(
-            "GetChildrenUrlTrafficInfo",
-            "POST",
-            {"siteUrl": site_url, "parentUrl": parent_url, "limit": limit},
-        )
-        return api._ensure_type_field(traffic, "ChildUrlTrafficInfo")
+    traffic = await api._make_request(
+        "GetChildrenUrlTrafficInfo",
+        "POST",
+        {"siteUrl": site_url, "parentUrl": parent_url, "limit": limit},
+    )
+    return api._ensure_type_field(traffic, "ChildUrlTrafficInfo")
 
 
 # Feed Management Enhancement
@@ -1391,11 +1264,10 @@ async def get_feed_details(
     Returns:
         Detailed feed information
     """
-    async with api:
-        details = await api._make_request(
-            f"GetFeedDetails?siteUrl={site_url}&feedUrl={feed_url}"
-        )
-        return api._ensure_type_field(details, "FeedDetails")
+    details = await api._make_request(
+        "GetFeedDetails", params={"siteUrl": site_url, "feedUrl": feed_url}
+    )
+    return api._ensure_type_field(details, "FeedDetails")
 
 
 @mcp.tool(name="remove_feed", description="Remove a feed from Bing Webmaster Tools.")
@@ -1413,17 +1285,12 @@ async def remove_feed(
     Returns:
         Success message
     """
-    async with api:
-        await api._make_request(
-            "RemoveFeed", "POST", {"siteUrl": site_url, "feedUrl": feed_url}
-        )
-        return {"message": f"Feed {feed_url} removed successfully"}
+    await api._make_request("RemoveFeed", "POST", {"siteUrl": site_url, "feedUrl": feed_url})
+    return {"message": f"Feed {feed_url} removed successfully"}
 
 
 # Additional Statistics
-@mcp.tool(
-    name="get_page_query_stats", description="Get query statistics for a specific page."
-)
+@mcp.tool(name="get_page_query_stats", description="Get query statistics for a specific page.")
 async def get_page_query_stats(
     site_url: Annotated[str, "The URL of the site"],
     page: Annotated[str, "The specific page URL"],
@@ -1438,11 +1305,8 @@ async def get_page_query_stats(
     Returns:
         List of query statistics for the page
     """
-    async with api:
-        stats = await api._make_request(
-            f"GetPageQueryStats?siteUrl={site_url}&page={page}"
-        )
-        return api._ensure_type_field(stats, "PageQueryStats")
+    stats = await api._make_request("GetPageQueryStats", params={"siteUrl": site_url, "page": page})
+    return api._ensure_type_field(stats, "PageQueryStats")
 
 
 @mcp.tool(
@@ -1465,18 +1329,16 @@ async def get_query_traffic_stats(
     Returns:
         Traffic statistics for the query
     """
-    async with api:
-        stats = await api._make_request(
-            f"GetQueryTrafficStats?siteUrl={site_url}&query={query}&period={period}"
-        )
-        return api._ensure_type_field(stats, "QueryTrafficStats")
+    stats = await api._make_request(
+        "GetQueryTrafficStats",
+        params={"siteUrl": site_url, "query": query, "period": period},
+    )
+    return api._ensure_type_field(stats, "QueryTrafficStats")
 
 
 # Site Move Management
 @mcp.tool(name="get_site_moves", description="Get history of site moves/migrations.")
-async def get_site_moves(
-    site_url: Annotated[str, "The URL of the site"]
-) -> List[Dict[str, Any]]:
+async def get_site_moves(site_url: Annotated[str, "The URL of the site"]) -> List[Dict[str, Any]]:
     """
     Get history of site moves/migrations.
 
@@ -1486,14 +1348,11 @@ async def get_site_moves(
     Returns:
         List of site moves
     """
-    async with api:
-        moves = await api._make_request(f"GetSiteMoves?siteUrl={site_url}")
-        return api._ensure_type_field(moves, "SiteMove")
+    moves = await api._make_request("GetSiteMoves", params={"siteUrl": site_url})
+    return api._ensure_type_field(moves, "SiteMove")
 
 
-@mcp.tool(
-    name="submit_site_move", description="Submit a site move/migration notification."
-)
+@mcp.tool(name="submit_site_move", description="Submit a site move/migration notification.")
 async def submit_site_move(
     old_site_url: Annotated[str, "The old site URL"],
     new_site_url: Annotated[str, "The new site URL"],
@@ -1510,17 +1369,16 @@ async def submit_site_move(
     Returns:
         Success message
     """
-    async with api:
-        await api._make_request(
-            "SubmitSiteMove",
-            "POST",
-            {
-                "oldSiteUrl": old_site_url,
-                "newSiteUrl": new_site_url,
-                "moveType": move_type,
-            },
-        )
-        return {"message": f"Site move from {old_site_url} to {new_site_url} submitted"}
+    await api._make_request(
+        "SubmitSiteMove",
+        "POST",
+        {
+            "oldSiteUrl": old_site_url,
+            "newSiteUrl": new_site_url,
+            "moveType": move_type,
+        },
+    )
+    return {"message": f"Site move from {old_site_url} to {new_site_url} submitted"}
 
 
 # Site Role Management Enhancement
@@ -1539,11 +1397,10 @@ async def remove_site_role(
     Returns:
         Success message
     """
-    async with api:
-        await api._make_request(
-            "RemoveSiteRole", "POST", {"siteUrl": site_url, "userEmail": user_email}
-        )
-        return {"message": f"Access removed for {user_email}"}
+    await api._make_request(
+        "RemoveSiteRole", "POST", {"siteUrl": site_url, "userEmail": user_email}
+    )
+    return {"message": f"Access removed for {user_email}"}
 
 
 # Country/Region Settings Enhancement
@@ -1565,17 +1422,18 @@ async def remove_country_region_settings(
     Returns:
         Success message
     """
-    async with api:
-        await api._make_request(
-            "RemoveCountryRegionSettings",
-            "POST",
-            {"siteUrl": site_url, "countryCode": country_code},
-        )
-        return {"message": f"Country settings for {country_code} removed successfully"}
+    await api._make_request(
+        "RemoveCountryRegionSettings",
+        "POST",
+        {"siteUrl": site_url, "countryCode": country_code},
+    )
+    return {"message": f"Country settings for {country_code} removed successfully"}
 
 
 def app() -> None:
     """MCP server entrypoint."""
+    if not API_KEY:
+        raise ValueError("BING_WEBMASTER_API_KEY environment variable is required")
     logger.info("Starting Bing Webmaster MCP server")
     mcp.run(transport="stdio")
 
