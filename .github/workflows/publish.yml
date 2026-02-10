@@ -1,28 +1,28 @@
 name: Publish to npm
 
 on:
-  push:
-    branches:
-      - main
   release:
     types: [published]
   workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
 
 jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [18.x, 20.x]
-        python-version: ['3.10', '3.11', '3.12']
+        python-version: ['3.10', '3.12']
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Use Node.js ${{ matrix.node-version }}
+      - name: Use Node.js 20.x
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: '20.x'
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
@@ -30,13 +30,10 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install uv
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+        uses: astral-sh/setup-uv@v4
 
       - name: Install dependencies
         run: |
-          npm ci
           uv pip install --system --python python${{ matrix.python-version }} -e .
 
       - name: Run validation
@@ -49,7 +46,6 @@ jobs:
   publish:
     needs: test
     runs-on: ubuntu-latest
-    if: github.event_name == 'release' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
 
     steps:
       - uses: actions/checkout@v4
@@ -60,29 +56,27 @@ jobs:
           node-version: '20.x'
           registry-url: 'https://registry.npmjs.org'
 
+      - name: Update npm
+        run: npm install -g npm@latest
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
       - name: Install uv
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+        uses: astral-sh/setup-uv@v4
 
       - name: Install dependencies
         run: |
-          npm ci
-          uv pip install --system --python python3.11 -e .
+          uv pip install --system --python python3.12 -e .
 
       - name: Check if version changed
         id: version-check
         run: |
-          # Get the current version from package.json
           CURRENT_VERSION=$(node -p "require('./package.json').version")
           echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
 
-          # Check if this version is already published
           if npm view @isiahw1/mcp-server-bing-webmaster@$CURRENT_VERSION version 2>/dev/null; then
             echo "Version $CURRENT_VERSION already exists on npm"
             echo "should_publish=false" >> $GITHUB_OUTPUT
@@ -95,14 +89,12 @@ jobs:
         if: steps.version-check.outputs.should_publish == 'true'
         run: npm run build
 
-      - name: Publish to npm
+      - name: Publish to npm with provenance
         if: steps.version-check.outputs.should_publish == 'true'
-        run: npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --provenance --access public
 
-      - name: Create GitHub Release (if push to main)
-        if: github.event_name == 'push' && steps.version-check.outputs.should_publish == 'true'
+      - name: Create GitHub Release
+        if: github.event_name != 'release' && steps.version-check.outputs.should_publish == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -110,12 +102,10 @@ jobs:
           gh release create "v${VERSION}" \
             --repo "${{ github.repository }}" \
             --title "Release v${VERSION}" \
-            --notes "Automated release for version ${VERSION}
-
-          ## Changes
-          See [commit history](https://github.com/${{ github.repository }}/commits/v${VERSION}) for details.
+            --notes "## Changes
+          See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
 
           ## Installation
           \`\`\`bash
-          npm install @isiahw1/mcp-server-bing-webmaster@${VERSION}
+          npx @isiahw1/mcp-server-bing-webmaster@${VERSION}
           \`\`\`"
