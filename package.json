@@ -1,6 +1,6 @@
 {
   "name": "@isiahw1/mcp-server-bing-webmaster",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "MCP server for Bing Webmaster Tools integration",
   "keywords": [
     "mcp",
@@ -74,7 +74,5 @@
     "registry": "https://registry.npmjs.org/"
   },
   "packageManager": "npm@10.0.0",
-  "dependencies": {
-    "@isiahw1/mcp-server-bing-webmaster": "^1.0.1"
-  }
+  "dependencies": {}
 }
