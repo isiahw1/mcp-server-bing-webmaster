@@ -63,7 +63,7 @@ Add to your configuration (Settings → Developer → Edit Config):
 
 ### Prerequisites
 - Node.js 16+ (for npm/npx)
-- Python 3.10+ (installed automatically via npm)
+- Python 3.10+ ([python.org](https://python.org/downloads/))
 - Bing Webmaster API key ([Get your API key](https://www.bing.com/webmasters))
 
 ### Quick Start
@@ -403,22 +403,24 @@ Once configured, you can use these tools in Claude:
 git clone https://github.com/isiahw1/mcp-server-bing-webmaster.git
 cd mcp-server-bing-webmaster
 
-# Create virtual environment
-python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+# Install uv (if not already installed)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Install dependencies
+uv sync
 
 # Install in development mode
-pip install -e .
+uv pip install -e .
 ```
 
-### Running Tests
+### Running the Server
 
 ```bash
 # Set your API key
 export BING_WEBMASTER_API_KEY=your_api_key_here
 
 # Run the server
-python -m mcp_server_bwt
+uv run python -m mcp_server_bwt
 ```
 
 ## Contributing

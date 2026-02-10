@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is an MCP (Model Context Protocol) server that provides AI assistants with access to Bing Webmaster Tools API. It's a **hybrid npm/Python package** distributed via npm but implemented in Python, using a JavaScript wrapper (`run.js`) to spawn the Python process.
 
-**Key Architecture Pattern**: The server acts as a bridge between MCP clients (Claude, Cursor, etc.) and Bing's REST API, using FastMCP to expose 70+ Bing Webmaster Tools functions as MCP tools.
+**Key Architecture Pattern**: The server acts as a bridge between MCP clients (Claude, Cursor, etc.) and Bing's REST API, using FastMCP to expose 60 Bing Webmaster Tools functions as MCP tools.
 
 ## Development Commands
 
@@ -119,7 +119,7 @@ def app() -> None:
 
 ### Tool Organization
 
-The 70+ tools are organized into 16 functional categories:
+The 60 tools are organized into 16 functional categories:
 - Site Management (4 tools)
 - Traffic Analysis (6 tools)
 - Crawling & Indexing (5 tools)
