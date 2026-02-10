@@ -57,10 +57,10 @@ class BingWebmasterAPI:
         headers = {"Content-Type": "application/json; charset=utf-8"}
 
         # Build URL with httpx params for proper encoding
+        # Set apikey AFTER merging caller params to prevent override
         url = f"{self.base_url}/{endpoint}"
-        all_params: Dict[str, Any] = {"apikey": self.api_key}
-        if params:
-            all_params.update(params)
+        all_params: Dict[str, Any] = dict(params) if params else {}
+        all_params["apikey"] = self.api_key
 
         try:
             if method == "GET":
